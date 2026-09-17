@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<a href="{% url 'home' %}" class="back-link">← Back</a>
+<h1>Which Car Are You Returning?</h1>
+
+<div class="tile-grid">
+    {% for borrow in borrows %}
+        <a href="{% url 'return_confirm' borrow.pk %}" class="tile">
+            <span class="icon">🚗</span>
+            {{ borrow.car_name }}
+        </a>
+    {% empty %}
+        <p class="empty-msg">No cars are currently borrowed.</p>
+    {% endfor %}
+</div>
+{% endblock %}

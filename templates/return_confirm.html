@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="confirm-box">
+    <h1>Is this you?</h1>
+    <div class="name">{{ borrow.borrowers_name }}</div>
+
+    <div class="confirm-actions">
+        <a href="{% url 'return_car' borrow.pk %}" class="btn-yes">Yes, that's me</a>
+        <a href="{% url 'return_list' %}" class="btn-no">No, go back</a>
+    </div>
+</div>
+{% endblock %}
