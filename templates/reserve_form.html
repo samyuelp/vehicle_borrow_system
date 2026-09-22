@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<a href="{% url 'reserve_list' %}" class="back-link">← Back</a>
+<h1>Reserve {{ vehicle.car_name }}</h1>
+
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Confirm Reservation</button>
+</form>
+{% endblock %}

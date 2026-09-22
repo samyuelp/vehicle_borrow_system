@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="confirm-box">
+    <h1>Not Available</h1>
+    <div class="name">{{ vehicle.car_name }}</div>
+
+    {% if status.current_borrow %}
+        <p>This car is currently out.</p>
+    {% elif status.reserved_today %}
+        <p>This car is reserved for today.</p>
+    {% endif %}
+
+    <div class="confirm-actions">
+        <a href="{% url 'borrow_list' %}" class="btn-no">Back to cars</a>
+    </div>
+</div>
+{% endblock %}

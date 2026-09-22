@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<a href="{% url 'home' %}" class="back-link">← Back</a>
+<h1>Reserve a Car</h1>
+
+<div class="tile-grid">
+    {% for vehicle in vehicles %}
+        <a href="{% url 'reserve_car' vehicle.id %}" class="tile">
+            <span class="icon">🚙</span>
+            {{ vehicle.car_name }}
+            {% if vehicle.upcoming_reservations %}
+                <small class="status reserved">
+                    {% for r in vehicle.upcoming_reservations %}
+                        {{ r.start_date|date:"M j" }} → {{ r.end_date|date:"M j" }}{% if not forloop.last %}, {% endif %}
+                    {% endfor %}
+                </small>
+            {% else %}
+                <small class="status available">No reservations</small>
+            {% endif %}
+        </a>
+    {% empty %}
+        <p class="empty-msg">No cars yet.</p>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -2,7 +2,7 @@
 
 {% block content %}
 <a href="{% url 'borrow_list' %}" class="back-link">← Back</a>
-<h1>Borrow Details</h1>
+<h1>Borrow {{ vehicle.car_name }}</h1>
 
 <form method="post">
     {% csrf_token %}

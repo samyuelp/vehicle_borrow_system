@@ -8,10 +8,11 @@
     {% for borrow in borrows %}
         <a href="{% url 'return_confirm' borrow.pk %}" class="tile">
             <span class="icon">🚗</span>
-            {{ borrow.car_name }}
+            {{ borrow.vehicle.car_name }}
+            <small class="status out">{{ borrow.borrowers_name }}</small>
         </a>
     {% empty %}
-        <p class="empty-msg">No cars are currently borrowed.</p>
+        <p class="empty-msg">No cars are currently out.</p>
     {% endfor %}
 </div>
 {% endblock %}
