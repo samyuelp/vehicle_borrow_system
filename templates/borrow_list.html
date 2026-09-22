@@ -6,22 +6,35 @@
 
 <div class="tile-grid">
     {% for vehicle in vehicles %}
-        {% if vehicle.status.is_available %}
+        {% if vehicle.status.overdue_borrow %}
+            <div class="tile tile-disabled">
+                <span class="icon">🚙</span>
+                {{ vehicle.car_name }}
+                <small class="status overdue">⚠️ Overdue</small>
+            </div>
+        {% elif vehicle.status.current_borrow %}
+            <div class="tile tile-disabled">
+                <span class="icon">🚙</span>
+                {{ vehicle.car_name }}
+                <small class="status out">🚗 Currently out</small>
+            </div>
+        {% elif vehicle.status.reserved_today %}
+            <a href="{% url 'pickup' vehicle.status.reserved_today.pk %}" class="tile">
+                <span class="icon">🚙</span>
+                {{ vehicle.car_name }}
+                <small class="status reserved">📅 Reserved today by {{ vehicle.status.reserved_today.borrowers_name }}</small>
+            </a>
+        {% else %}
             <a href="{% url 'borrow_car' vehicle.id %}" class="tile">
                 <span class="icon">🚙</span>
                 {{ vehicle.car_name }}
                 <small class="status available">✅ Available</small>
-            </a>
-        {% else %}
-            <div class="tile tile-disabled">
-                <span class="icon">🚙</span>
-                {{ vehicle.car_name }}
-                {% if vehicle.status.current_borrow %}
-                    <small class="status out">🚗 Currently out</small>
-                {% elif vehicle.status.reserved_today %}
-                    <small class="status reserved">📅 Reserved today</small>
+                {% if vehicle.status.upcoming_reservation %}
+                    <small style="display: block; margin-top: 0.25rem; font-size: 0.75rem; color: #a78bfa; font-weight: 600;">
+                        Next: {{ vehicle.status.upcoming_reservation.start_date|date:"M j" }} → {{ vehicle.status.upcoming_reservation.end_date|date:"M j" }}
+                    </small>
                 {% endif %}
-            </div>
+            </a>
         {% endif %}
     {% empty %}
         <p class="empty-msg">No cars yet.</p>

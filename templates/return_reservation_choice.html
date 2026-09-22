@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="center-wrap">
+    <div class="confirm-box">
+        <h1>Reservation Still Active</h1>
+        <div class="name">{{ borrow.vehicle.car_name }}</div>
+
+        <p class="reserve-dates">
+            You reserved this car through
+            <strong style="color: #a78bfa;">{{ borrow.reservation.end_date|date:"F j, Y" }}</strong>.
+        </p>
+
+        <p style="font-size: 1.1rem; color: #cbd5e1; margin-bottom: 2rem;">
+            Do you still want to keep it reserved?
+        </p>
+
+        <div class="confirm-actions">
+            <a href="{% url 'return_reservation_cancel' borrow.pk %}" class="btn-no">
+                No, cancel reservation
+            </a>
+            <a href="{% url 'return_reservation_keep' borrow.pk %}" class="btn-yes">
+                Yes, keep it
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

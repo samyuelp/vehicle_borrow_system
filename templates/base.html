@@ -41,6 +41,7 @@
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
             gap: 1.5rem;
+            justify-content: center;
         }
 
         .tile {
@@ -103,6 +104,7 @@
         .tile .status.available { color: #34d399; }
         .tile .status.out { color: #f59e0b; }
         .tile .status.reserved { color: #a78bfa; }
+        .tile .status.overdue { color: #ef4444; }
 
         .tile-disabled {
             opacity: 0.5;
@@ -242,8 +244,16 @@
         }
 
         /* ---- Confirm screen ---- */
+        .center-wrap {
+            min-height: 70vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         .confirm-box {
             max-width: 640px;
+            width: 100%;
             margin: 4rem auto;
             text-align: center;
             background: linear-gradient(160deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
@@ -311,6 +321,48 @@
 
         .btn-no:hover {
             background: rgba(100, 116, 139, 0.4);
+        }
+
+        /* ---- Reserve success extras ---- */
+        .reserve-dates {
+            font-size: 1.1rem;
+            color: #94a3b8;
+            margin-bottom: 2rem;
+        }
+
+        .code-label {
+            font-size: 1.1rem;
+            color: #cbd5e1;
+            margin-bottom: 1rem;
+        }
+
+        .pickup-form {
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin-top: 2rem;
+    max-width: 100%;
+    backdrop-filter: none;
+}
+
+        .pickup-code {
+            font-size: 5rem;
+            font-weight: 900;
+            letter-spacing: 0.3em;
+            background: linear-gradient(135deg, #60a5fa, #34d399);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .code-warning {
+            font-size: 1rem;
+            color: #f59e0b;
+            font-weight: 600;
         }
 
         /* ---- Misc ---- */

@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="center-wrap">
+    <div class="confirm-box">
+        <h1>Reservation Confirmed</h1>
+        <div class="name">{{ reservation.vehicle.car_name }}</div>
+
+        <p class="reserve-dates">
+            {{ reservation.start_date|date:"F j, Y" }} → {{ reservation.end_date|date:"F j, Y" }}
+        </p>
+
+        <p class="code-label">Your pickup code</p>
+
+        <div class="pickup-code">{{ reservation.code }}</div>
+
+        <p class="code-warning">⚠️ Write this down. You'll need it to pick up the car.</p>
+
+        <div class="confirm-actions">
+            <a href="{% url 'home' %}" class="btn-yes">Done</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
