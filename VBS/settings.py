@@ -128,3 +128,6 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+
+SESSION_COOKIE_AGE = 1800  # 30 minutes. Default is 1209600 (2 weeks)
+SESSION_SAVE_EVERY_REQUEST = True
