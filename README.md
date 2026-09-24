@@ -91,7 +91,6 @@ python manage.py runserver
 
 | Item | Value |
 |---|---|
-| LXC container IP | `10.64.16.174` |
 | App directory on LXC | `/opt/kiosk` |
 | Data directory (SQLite) | `/opt/kiosk-data` |
 | Container name | `kiosk` |
@@ -141,7 +140,7 @@ docker logs kiosk
 Look for Gunicorn startup lines. Then visit:
 
 ```
-http://10.64.16.174:8000
+http://<ip_address>:8000
 ```
 
 ---
@@ -363,4 +362,4 @@ Browser cache. Hard-refresh:
 
 Local path: `~/Projects/vehicle_borrow_system`
 
-Git remote: *(add your repo URL here)*
+Git remote: [*(repo url)*](https://github.com/samyuelp/vehicle_borrow_system.git)
