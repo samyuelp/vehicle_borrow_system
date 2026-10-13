@@ -4,6 +4,26 @@
 <a href="{% url 'reserve_list' %}" class="back-link">← Back</a>
 <h1>Reserve {{ vehicle.car_name }}</h1>
 
+{% if existing_reservations %}
+    <div style="max-width: 560px; margin: 0 auto 1.5rem auto;">
+        <p style="font-size: 1rem; color: #cbd5e1; font-weight: 700; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em;">
+            Already reserved for:
+        </p>
+        <ul class="reservation-list">
+            {% for r in existing_reservations %}
+                <li>
+                    <strong>{{ r.start_date|date:"M j" }} → {{ r.end_date|date:"M j" }}</strong>
+                    — {{ r.borrowers_name }}
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+{% else %}
+    <p class="reservation-list-empty" style="max-width: 560px; margin: 0 auto 1.5rem auto; text-align: center;">
+        No existing reservations for this car.
+    </p>
+{% endif %}
+
 <form method="post">
     {% csrf_token %}
     {{ form.as_p }}

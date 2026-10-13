@@ -2,7 +2,7 @@
 
 {% block content %}
 <a href="{% url 'home' %}" class="back-link">← Back</a>
-<h1>Reserve a Car</h1>
+<h1>Reserve a Vehicle</h1>
 
 <div class="tile-grid">
     {% for vehicle in vehicles %}
@@ -11,16 +11,25 @@
             {{ vehicle.car_name }}
             {% if vehicle.upcoming_reservations %}
                 <small class="status reserved">
-                    {% for r in vehicle.upcoming_reservations %}
-                        {{ r.start_date|date:"M j" }} → {{ r.end_date|date:"M j" }}{% if not forloop.last %}, {% endif %}
+                    {{ vehicle.upcoming_reservations|length }} upcoming
+                    {% with next=vehicle.upcoming_reservations.0 %}
+                        — next {{ next.start_date|date:"M j" }}
+                    {% endwith %}
+                </small>
+                <small style="display: block; margin-top: 0.4rem; font-size: 0.75rem; color: #a78bfa; font-weight: 600; line-height: 1.5;">
+                    {% for r in vehicle.upcoming_reservations|slice:":3" %}
+                        {{ r.start_date|date:"M j" }} → {{ r.end_date|date:"M j" }}{% if not forloop.last %}<br>{% endif %}
                     {% endfor %}
+                    {% if vehicle.upcoming_reservations|length > 3 %}
+                        <br>+ {{ vehicle.upcoming_reservations|length|add:"-3" }} more
+                    {% endif %}
                 </small>
             {% else %}
                 <small class="status available">No reservations</small>
             {% endif %}
         </a>
     {% empty %}
-        <p class="empty-msg">No cars yet.</p>
+        <p class="empty-msg">No vehicles yet.</p>
     {% endfor %}
 </div>
 {% endblock %}

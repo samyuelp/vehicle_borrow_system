@@ -10,6 +10,12 @@ class BorrowDetailForm(forms.ModelForm):
 
 
 class ReturnDetailForm(forms.ModelForm):
+    key_returned = forms.BooleanField(
+        label='Key returned to its spot',
+        required=True,
+        error_messages={'required': 'Please confirm the key was returned.'},
+    )
+
     class Meta:
         model = models.BorrowDetail
         fields = ('fuel_percent', 'current_mileage', 'notes')

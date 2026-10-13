@@ -1,12 +1,12 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h1>Car Borrow Kiosk</h1>
+<h1>Vehicle Borrow Kiosk</h1>
 
 <div class="home-grid">
     <a href="{% url 'borrow_list' %}" class="tile home-tile borrow">
         <span class="icon">🚗</span>
-        Borrow a Car
+        Borrow a Vehicle
     </a>
     <a href="{% url 'reserve_list' %}" class="tile home-tile reserve">
         <span class="icon">📅</span>
@@ -14,7 +14,7 @@
     </a>
     <a href="{% url 'return_list' %}" class="tile home-tile return">
         <span class="icon">🔑</span>
-        Return a Car
+        Return a Vehicle
     </a>
 </div>
 {% endblock %}

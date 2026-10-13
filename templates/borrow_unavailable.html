@@ -8,16 +8,16 @@
 
         {% if reason == 'overdue' %}
             <p style="font-size: 1.1rem; color: #ef4444; margin-bottom: 2rem;">
-                ⚠️ This car is overdue. Please contact the admin.
+                ⚠️ This vehicle is overdue. Please contact the admin.
             </p>
         {% elif reason == 'out' %}
             <p style="font-size: 1.1rem; color: #f59e0b; margin-bottom: 2rem;">
-                🚗 This car is currently out.
+                🚗 This vehicle is currently out.
             </p>
         {% endif %}
 
         <div class="confirm-actions">
-            <a href="{% url 'borrow_list' %}" class="btn-no">Back to cars</a>
+            <a href="{% url 'borrow_list' %}" class="btn-no">Back to vehicles</a>
         </div>
     </div>
 </div>

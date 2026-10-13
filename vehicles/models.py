@@ -12,9 +12,74 @@ def _generate_code():
 
 class Vehicle(models.Model):
     car_name = models.CharField(max_length=200)
+    next_service_date = models.DateField(
+        blank=True,
+        null=True,
+        help_text='Date the next service is due. Leave blank if not tracked.',
+    )
+    next_service_mileage = models.IntegerField(
+        blank=True,
+        null=True,
+        help_text='Mileage at which the next service is due. Leave blank if not tracked.',
+    )
 
     def __str__(self):
         return self.car_name
+
+    @property
+    def last_known_mileage(self):
+        """Highest mileage recorded on any returned borrow for this vehicle."""
+        result = self.borrowdetail_set.filter(
+            actual_return_time__isnull=False,
+            current_mileage__isnull=False,
+        ).aggregate(models.Max('current_mileage'))
+        return result['current_mileage__max']
+
+    @property
+    def last_known_fuel(self):
+        """Fuel percent recorded on the most recent return for this vehicle."""
+        latest = self.borrowdetail_set.filter(
+            actual_return_time__isnull=False,
+            fuel_percent__isnull=False,
+        ).order_by('-actual_return_time').first()
+        return latest.fuel_percent if latest else None
+
+    @property
+    def service_status(self):
+        """Warn-only service status.
+
+        Returns a dict:
+            due (bool)      -- service is past due (date or mileage)
+            soon (bool)     -- service is approaching (date only)
+            reasons (list)  -- e.g. ['Date', 'Mileage']
+        """
+        today = timezone.localdate()
+        due_reasons = []
+
+        # Date check
+        date_due = False
+        date_soon = False
+        if self.next_service_date is not None:
+            days_until = (self.next_service_date - today).days
+            if days_until < 0:
+                date_due = True
+                due_reasons.append('Date')
+            elif days_until <= 14:
+                date_soon = True
+
+        # Mileage check
+        mileage_due = False
+        if self.next_service_mileage is not None:
+            mileage = self.last_known_mileage
+            if mileage is not None and mileage >= self.next_service_mileage:
+                mileage_due = True
+                due_reasons.append('Mileage')
+
+        return {
+            'due': date_due or mileage_due,
+            'soon': date_soon and not (date_due or mileage_due),
+            'reasons': due_reasons,
+        }
 
 
 class BorrowDetail(models.Model):
@@ -80,7 +145,6 @@ class Reservation(models.Model):
             return False
         if today <= self.end_date:
             return False
-        # Is there an unreturned borrow linked to this reservation?
         return self.borrows.filter(actual_return_time__isnull=True).exists()
 
     def save(self, *args, **kwargs):

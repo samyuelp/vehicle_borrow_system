@@ -2,7 +2,7 @@
 
 {% block content %}
 <a href="{% url 'home' %}" class="back-link">← Back</a>
-<h1>Choose a Car</h1>
+<h1>Choose a Vehicle</h1>
 
 <div class="tile-grid">
     {% for vehicle in vehicles %}
@@ -29,6 +29,25 @@
                 <span class="icon">🚙</span>
                 {{ vehicle.car_name }}
                 <small class="status available">✅ Available</small>
+
+                {% if vehicle.status.last_known_fuel is not None %}
+                    {% if vehicle.status.last_known_fuel < 25 %}
+                        <small class="status fuel-low">⛽ Last: {{ vehicle.status.last_known_fuel }}%</small>
+                    {% elif vehicle.status.last_known_fuel < 50 %}
+                        <small class="status fuel-mid">⛽ Last: {{ vehicle.status.last_known_fuel }}%</small>
+                    {% else %}
+                        <small class="status available">⛽ Last: {{ vehicle.status.last_known_fuel }}%</small>
+                    {% endif %}
+                {% endif %}
+
+                {% if vehicle.status.service_status.due %}
+                    <small class="status service-warn">
+                        🔧 Service due{% if vehicle.status.service_status.reasons %} ({{ vehicle.status.service_status.reasons|join:", " }}){% endif %}
+                    </small>
+                {% elif vehicle.status.service_status.soon %}
+                    <small class="status service-warn">🔧 Service soon</small>
+                {% endif %}
+
                 {% if vehicle.status.upcoming_reservation %}
                     <small style="display: block; margin-top: 0.25rem; font-size: 0.75rem; color: #a78bfa; font-weight: 600;">
                         Next: {{ vehicle.status.upcoming_reservation.start_date|date:"M j" }} → {{ vehicle.status.upcoming_reservation.end_date|date:"M j" }}
@@ -37,7 +56,7 @@
             </a>
         {% endif %}
     {% empty %}
-        <p class="empty-msg">No cars yet.</p>
+        <p class="empty-msg">No vehicles yet.</p>
     {% endfor %}
 </div>
 {% endblock %}

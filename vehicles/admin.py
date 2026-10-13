@@ -6,8 +6,20 @@ from .models import Vehicle, BorrowDetail, Reservation
 
 @admin.register(Vehicle)
 class VehicleAdmin(admin.ModelAdmin):
-    list_display = ('car_name', 'current_status')
+    list_display = (
+        'car_name',
+        'current_status',
+        'service_display',
+        'fuel_display',
+        'next_service_date',
+        'next_service_mileage',
+    )
     search_fields = ('car_name',)
+    fields = (
+        'car_name',
+        'next_service_date',
+        'next_service_mileage',
+    )
 
     def current_status(self, obj):
         today = timezone.localdate()
@@ -49,6 +61,25 @@ class VehicleAdmin(admin.ModelAdmin):
         return "✅ Available"
 
     current_status.short_description = 'Status'
+
+    def service_display(self, obj):
+        status = obj.service_status
+        if status['due']:
+            reasons = ', '.join(status['reasons']) if status['reasons'] else 'Due'
+            return f"🔧 Due ({reasons})"
+        if status['soon']:
+            return "🔧 Soon"
+        return "—"
+
+    service_display.short_description = 'Service'
+
+    def fuel_display(self, obj):
+        fuel = obj.last_known_fuel
+        if fuel is None:
+            return "—"
+        return f"⛽ {fuel}%"
+
+    fuel_display.short_description = 'Last fuel'
 
 
 @admin.register(BorrowDetail)

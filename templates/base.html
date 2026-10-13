@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Car Borrow Kiosk</title>
+    <title>Vehicle Borrow Kiosk</title>
     <style>
         * {
             box-sizing: border-box;
@@ -105,6 +105,9 @@
         .tile .status.out { color: #f59e0b; }
         .tile .status.reserved { color: #a78bfa; }
         .tile .status.overdue { color: #ef4444; }
+        .tile .status.fuel-low { color: #ef4444; }
+        .tile .status.fuel-mid { color: #f59e0b; }
+        .tile .status.service-warn { color: #f59e0b; }
 
         .tile-disabled {
             opacity: 0.5;
@@ -217,6 +220,25 @@
             border-color: #60a5fa;
             background: rgba(15, 23, 42, 0.95);
             box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.15);
+        }
+
+        /* Checkbox: don't stretch, sit inline with its label */
+        form input[type="checkbox"] {
+            width: auto;
+            margin-right: 0.75rem;
+            vertical-align: middle;
+            transform: scale(1.4);
+            accent-color: #3b82f6;
+        }
+
+        form input[type="checkbox"] + label,
+        form label:has(input[type="checkbox"]) {
+            display: inline-block;
+            text-transform: none;
+            letter-spacing: normal;
+            font-size: 1.1rem;
+            color: #e2e8f0;
+            margin-bottom: 0;
         }
 
         form button {
@@ -337,14 +359,14 @@
         }
 
         .pickup-form {
-    background: none;
-    border: none;
-    box-shadow: none;
-    padding: 0;
-    margin-top: 2rem;
-    max-width: 100%;
-    backdrop-filter: none;
-}
+            background: none;
+            border: none;
+            box-shadow: none;
+            padding: 0;
+            margin-top: 2rem;
+            max-width: 100%;
+            backdrop-filter: none;
+        }
 
         .pickup-code {
             font-size: 5rem;
@@ -363,6 +385,35 @@
             font-size: 1rem;
             color: #f59e0b;
             font-weight: 600;
+        }
+
+        /* ---- Reservation list (on reserve form / reserve list) ---- */
+        .reservation-list {
+            list-style: none;
+            margin: 0 0 1.5rem 0;
+            padding: 0;
+            text-align: left;
+        }
+
+        .reservation-list li {
+            padding: 0.6rem 0.9rem;
+            margin-bottom: 0.5rem;
+            background: rgba(124, 58, 237, 0.12);
+            border-left: 3px solid #a78bfa;
+            border-radius: 6px;
+            font-size: 1rem;
+            color: #cbd5e1;
+        }
+
+        .reservation-list li strong {
+            color: #f1f5f9;
+        }
+
+        .reservation-list-empty {
+            font-size: 1rem;
+            color: #64748b;
+            font-style: italic;
+            margin-bottom: 1.5rem;
         }
 
         /* ---- Misc ---- */

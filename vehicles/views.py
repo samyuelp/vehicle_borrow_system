@@ -56,6 +56,8 @@ def _vehicle_status(vehicle):
         'upcoming_reservation': upcoming_reservation,
         'overdue_borrow': overdue_borrow,
         'is_available': is_available,
+        'last_known_fuel': vehicle.last_known_fuel,
+        'service_status': vehicle.service_status,
     }
 
 
@@ -221,7 +223,15 @@ class ReserveCarView(CreateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['vehicle'] = get_object_or_404(models.Vehicle, pk=self.kwargs['vehicle_id'])
+        vehicle = get_object_or_404(models.Vehicle, pk=self.kwargs['vehicle_id'])
+        context['vehicle'] = vehicle
+        today = timezone.localdate()
+        context['existing_reservations'] = models.Reservation.objects.filter(
+            vehicle=vehicle,
+            cancelled=False,
+            fulfilled=False,
+            end_date__gte=today,
+        ).order_by('start_date')
         return context
 
     def form_valid(self, form):
