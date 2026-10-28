@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-a7af$%ntz*-q*@ksbi21s4b-i3r33w8c*ng_!4wgyd3pikmtuk
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['10.64.16.174', 'localhost', '127.0.0.1']
 
 
 # Application definition
@@ -77,8 +77,12 @@ WSGI_APPLICATION = 'VBS.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.environ.get('DJANGO_DB_PATH', str(BASE_DIR / 'db.sqlite3')),
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('POSTGRES_DB', 'kiosk'),
+        'USER': os.environ.get('POSTGRES_USER', 'kiosk'),
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''),
+        'HOST': os.environ.get('POSTGRES_HOST', 'kiosk-db'),
+        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
     }
 }
 
