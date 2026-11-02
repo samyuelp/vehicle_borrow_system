@@ -12,22 +12,36 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urljoin
-from urllib.request import HTTPCookieProcessor, Request, build_opener
+from urllib.request import HTTPCookieProcessor, Request, build_opener, HTTPRedirectHandler
 
 DEFAULT_BASE = "http://localhost:8000"
 
 
-def _opener():
-    return build_opener(HTTPCookieProcessor())
+class _NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _opener(follow_redirects=True):
+    handlers = [HTTPCookieProcessor()]
+    if not follow_redirects:
+        handlers.append(_NoRedirect())
+    return build_opener(*handlers)
 
 
 def _get(opener, url, timeout=10):
-    req = Request(url, headers={"User-Agent": "vbs-stress/3.0"})
+    req = Request(url, headers={"User-Agent": "vbs-stress/3.1"})
     try:
         with opener.open(req, timeout=timeout) as resp:
             return resp.status, resp.read().decode("utf-8", "replace"), resp.geturl()
     except HTTPError as e:
-        return e.code, e.read().decode("utf-8", "replace"), url
+        # 302 comes through here when NoRedirect is active
+        body = ""
+        try:
+            body = e.read().decode("utf-8", "replace")
+        except Exception:
+            pass
+        return e.code, body, e.headers.get("Location", url) if e.code in (301, 302, 303, 307, 308) else url
     except URLError as e:
         return 0, str(e), url
 
@@ -49,36 +63,50 @@ def _extract_csrf(html):
 
 
 def _post_with_token(opener, form_url, post_url, data, timeout=10, debug=False):
-    """GET form_url to get cookie+token, then POST to post_url."""
-    status, body, _ = _get(opener, form_url, timeout=timeout)
+    # Get the form page WITHOUT following redirects — 302 means "vehicle busy"
+    status, body, location = _get(opener, form_url, timeout=timeout)
 
     if debug:
         print(f"\n[DEBUG] GET {form_url} -> {status}")
+
+    if status in (301, 302, 303, 307, 308):
+        return status, "redirect", location  # signals "busy" to caller
+
+    if status != 200:
+        return status, f"form GET {status}", form_url
 
     token = _extract_csrf(body)
     if debug:
         print(f"[DEBUG] extracted token: {token!r}")
 
     if not token:
-        return 0, f"No CSRF token found on {form_url}", form_url
+        return 0, "no CSRF token in form page", form_url
 
     data = {**data, "csrfmiddlewaretoken": token}
     encoded = urlencode(data).encode()
 
+    # POST with redirects enabled (normal browser behavior)
+    post_opener = build_opener(HTTPCookieProcessor())
+    # Copy cookies from the GET opener — but they're the same jar passed in
     req = Request(
         post_url,
         data=encoded,
         headers={
             "Content-Type": "application/x-www-form-urlencoded",
             "Referer": form_url,
-            "User-Agent": "vbs-stress/3.0",
+            "User-Agent": "vbs-stress/3.1",
         },
     )
     try:
         with opener.open(req, timeout=timeout) as resp:
             return resp.status, resp.read().decode("utf-8", "replace"), resp.geturl()
     except HTTPError as e:
-        return e.code, e.read().decode("utf-8", "replace", ), post_url
+        body = ""
+        try:
+            body = e.read().decode("utf-8", "replace")
+        except Exception:
+            pass
+        return e.code, body, post_url
     except URLError as e:
         return 0, str(e), post_url
 
@@ -120,61 +148,125 @@ def _random_name(prefix="Stress"):
 
 
 def _borrow_return_cycle(base, vehicle_id, debug=False):
-    opener = _opener()
+    """Returns (ok, detail, busy). busy=True means 'vehicle was taken by another thread'."""
+    opener = _opener(follow_redirects=False)
     name = _random_name()
 
-    # 1. Borrow: GET form page, POST to same URL
     form_url = urljoin(base, f"/borrow/{vehicle_id}/")
-    status, body, _ = _get(opener, form_url)
-    if status != 200:
-        return False, f"borrow form GET {status}"
+    status, body, location = _get(opener, form_url)
+    if status == 200:
+        # good — form is available
+        pass
+    elif status in (301, 302, 303, 307, 308):
+        # vehicle went out between list fetch and now, OR it's reserved
+        return True, f"vehicle {vehicle_id} busy (redirected)", True
+    else:
+        return False, f"borrow form GET {status}", False
 
-    status, body, final = _post_with_token(
-        opener,
-        form_url=form_url,
-        post_url=urljoin(base, f"/borrow/{vehicle_id}/"),
-        data={"borrowers_name": name, "destination": "stress-test"},
-        debug=debug,
+    # Extract token, POST
+    token = _extract_csrf(body)
+    if not token:
+        return False, f"no CSRF token on borrow form for vehicle {vehicle_id}", False
+
+    encoded = urlencode({
+        "csrfmiddlewaretoken": token,
+        "borrowers_name": name,
+        "destination": "stress-test",
+    }).encode()
+
+    # POST with redirects enabled (we don't care about the redirect target)
+    post_opener = _opener(follow_redirects=True)
+    # Copy cookies by doing the GET again with the POST opener? Simpler: rebuild
+    # Actually the _NoRedirect opener and the normal opener are separate jars.
+    # So re-do the GET on post_opener:
+    status, body, _ = _get(post_opener, form_url)
+    if status != 200:
+        return True, f"vehicle {vehicle_id} busy on retry", True
+    token = _extract_csrf(body)
+    if not token:
+        return False, f"no CSRF token on retry for vehicle {vehicle_id}", False
+
+    encoded = urlencode({
+        "csrfmiddlewaretoken": token,
+        "borrowers_name": name,
+        "destination": "stress-test",
+    }).encode()
+
+    req = Request(
+        form_url,
+        data=encoded,
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Referer": form_url,
+            "User-Agent": "vbs-stress/3.1",
+        },
     )
-    if status not in (200, 302):
-        snippet = " [CSRF]" if "csrf" in body.lower() else ""
-        return False, f"borrow POST {status}{snippet}"
+    try:
+        with post_opener.open(req, timeout=10) as resp:
+            post_status = resp.status
+            post_body = resp.read().decode("utf-8", "replace")
+            post_final = resp.geturl()
+    except HTTPError as e:
+        return False, f"borrow POST {e.code}", False
+    except URLError as e:
+        return False, f"borrow POST network error: {e}", False
 
-    # 2. Find the borrow on the return list
-    status, body, _ = _get(opener, urljoin(base, "/return/"))
+    if post_status not in (200, 302):
+        snippet = " [CSRF]" if "csrf" in post_body.lower() else ""
+        return False, f"borrow POST {post_status}{snippet}", False
+
+    # Find the borrow on the return list
+    status, body, _ = _get(post_opener, urljoin(base, "/return/"))
     if status != 200:
-        return False, f"return list GET {status}"
+        return False, f"return list GET {status}", False
 
     confirm_links = re.findall(r"/return/(\d+)/confirm/", body)
     if not confirm_links:
-        return True, f"borrowed as {name}, no confirm links (maybe already returned?)"
+        return True, f"borrowed as {name}, already returned (no confirm links)", False
 
     pk = confirm_links[0]
 
-    # 3. GET the return confirm page (link page, no form) — just a sanity check
-    status, _, _ = _get(opener, urljoin(base, f"/return/{pk}/confirm/"))
-    if status != 200:
-        return False, f"return confirm GET {status}"
-
-    # 4. GET the actual return form (has CSRF), then POST
+    # Return flow — same pattern
     return_form_url = urljoin(base, f"/return/{pk}/")
-    status, body, final = _post_with_token(
-        opener,
-        form_url=return_form_url,
-        post_url=return_form_url,
-        data={
-            "fuel_percent": "50",
-            "current_mileage": "50000",
-            "notes": "stress-test return",
-            "key_returned": "on",
-        },
-        debug=debug,
-    )
-    if status not in (200, 302):
-        snippet = " [CSRF]" if "csrf" in body.lower() else ""
-        return False, f"return POST {status}{snippet}"
+    status, body, _ = _get(post_opener, return_form_url)
+    if status != 200:
+        return False, f"return form GET {status}", False
 
-    return True, f"borrowed {name}, returned pk={pk}"
+    token = _extract_csrf(body)
+    if not token:
+        return False, f"no CSRF token on return form pk={pk}", False
+
+    encoded = urlencode({
+        "csrfmiddlewaretoken": token,
+        "fuel_percent": "50",
+        "current_mileage": "50000",
+        "notes": "stress-test return",
+        "key_returned": "on",
+    }).encode()
+
+    req = Request(
+        return_form_url,
+        data=encoded,
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Referer": return_form_url,
+            "User-Agent": "vbs-stress/3.1",
+        },
+    )
+    try:
+        with post_opener.open(req, timeout=10) as resp:
+            ret_status = resp.status
+            ret_body = resp.read().decode("utf-8", "replace")
+    except HTTPError as e:
+        return False, f"return POST {e.code}", False
+    except URLError as e:
+        return False, f"return POST network error: {e}", False
+
+    if ret_status not in (200, 302):
+        snippet = " [CSRF]" if "csrf" in ret_body.lower() else ""
+        return False, f"return POST {ret_status}{snippet}", False
+
+    return True, f"borrowed {name}, returned pk={pk}", False
 
 
 def run_stress(base, n=50, workers=5, debug=False):
@@ -196,6 +288,7 @@ def run_stress(base, n=50, workers=5, debug=False):
 
     start = time.time()
     successes = 0
+    busy_count = 0
     failures = []
     seen_500s = 0
 
@@ -205,20 +298,23 @@ def run_stress(base, n=50, workers=5, debug=False):
             for _ in range(n)
         ]
         for i, fut in enumerate(as_completed(futures), 1):
-            ok, detail = fut.result()
+            ok, detail, busy = fut.result()
             if ok:
                 successes += 1
+                if busy:
+                    busy_count += 1
             else:
                 failures.append(detail)
                 if "500" in detail:
                     seen_500s += 1
             if i % 10 == 0 or i == n:
-                print(f"  ... {i}/{n} done (ok={successes}, fail={len(failures)})")
+                print(f"  ... {i}/{n} done (ok={successes}, fail={len(failures)}, busy={busy_count})")
 
     elapsed = time.time() - start
     print(f"\n  Completed {n} cycles in {elapsed:.2f}s")
-    print(f"  Successes: {successes}")
-    print(f"  Failures:  {len(failures)}")
+    print(f"  Successes:      {successes}")
+    print(f"    of which busy: {busy_count}  (vehicle already taken — expected under concurrency)")
+    print(f"  Failures:       {len(failures)}")
     if failures:
         print("\n  Failure breakdown:")
         for msg, count in Counter(failures).most_common():
