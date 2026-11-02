@@ -1,11 +1,5 @@
 """
 Smoke + stress test for the Vehicle Borrow System (VBS).
-
-Usage:
-    python3 stress_test.py smoke              # check every page returns 200
-    python3 stress_test.py stress --n 50      # 50 concurrent borrow/return cycles
-    python3 stress_test.py all --n 50         # both
-    python3 stress_test.py smoke --debug      # print raw HTML to diagnose CSRF issues
 """
 
 import argparse
@@ -14,9 +8,10 @@ import re
 import string
 import sys
 import time
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.error import HTTPError, URLError
-from urllib.parse import urljoin
+from urllib.parse import urlencode, urljoin
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 DEFAULT_BASE = "http://localhost:8000"
@@ -27,7 +22,7 @@ def _opener():
 
 
 def _get(opener, url, timeout=10):
-    req = Request(url, headers={"User-Agent": "vbs-stress/2.0"})
+    req = Request(url, headers={"User-Agent": "vbs-stress/3.0"})
     try:
         with opener.open(req, timeout=timeout) as resp:
             return resp.status, resp.read().decode("utf-8", "replace"), resp.geturl()
@@ -38,7 +33,6 @@ def _get(opener, url, timeout=10):
 
 
 def _extract_csrf(html):
-    """Pull csrfmiddlewaretoken out of a rendered form, tolerant of attr order/quotes."""
     if not html:
         return None
     patterns = [
@@ -54,47 +48,39 @@ def _extract_csrf(html):
     return None
 
 
-def _post(opener, url, data, referer=None, timeout=10, debug=False):
-    # Fetch the form page to get a fresh CSRF cookie + token
-    form_url = referer or url
+def _post_with_token(opener, form_url, post_url, data, timeout=10, debug=False):
+    """GET form_url to get cookie+token, then POST to post_url."""
     status, body, _ = _get(opener, form_url, timeout=timeout)
 
     if debug:
         print(f"\n[DEBUG] GET {form_url} -> {status}")
-        idx = body.find("csrfmiddlewaretoken")
-        if idx != -1:
-            print(f"[DEBUG] csrf context: ...{body[max(0,idx-60):idx+80]}...")
-        else:
-            print("[DEBUG] no csrfmiddlewaretoken in response body")
 
     token = _extract_csrf(body)
     if debug:
         print(f"[DEBUG] extracted token: {token!r}")
 
     if not token:
-        return 0, f"No CSRF token found on {form_url}", url
+        return 0, f"No CSRF token found on {form_url}", form_url
 
     data = {**data, "csrfmiddlewaretoken": token}
-
-    from urllib.parse import urlencode
     encoded = urlencode(data).encode()
 
     req = Request(
-        url,
+        post_url,
         data=encoded,
         headers={
             "Content-Type": "application/x-www-form-urlencoded",
             "Referer": form_url,
-            "User-Agent": "vbs-stress/2.0",
+            "User-Agent": "vbs-stress/3.0",
         },
     )
     try:
         with opener.open(req, timeout=timeout) as resp:
             return resp.status, resp.read().decode("utf-8", "replace"), resp.geturl()
     except HTTPError as e:
-        return e.code, e.read().decode("utf-8", "replace"), url
+        return e.code, e.read().decode("utf-8", "replace", ), post_url
     except URLError as e:
-        return 0, str(e), url
+        return 0, str(e), post_url
 
 
 # ---------- Smoke test ----------
@@ -117,23 +103,10 @@ def run_smoke(base, debug=False):
         url = urljoin(base + "/", path.lstrip("/"))
         status, body, _ = _get(opener, url)
         ok = status == 200
-        marker = "OK " if ok else "FAIL"
-        print(f"  [{marker}] {label:20s} {url}  -> {status}")
+        print(f"  [{'OK ' if ok else 'FAIL'}] {label:20s} {url}  -> {status}")
         if not ok:
             failures += 1
             print(f"         body: {body[:300]}")
-
-    if debug:
-        url = urljoin(base + "/", "borrow/1/")
-        status, body, _ = _get(opener, url)
-        print(f"\n[DEBUG] GET {url} -> {status}")
-        print(f"[DEBUG] body length: {len(body)}")
-        idx = body.find("csrfmiddlewaretoken")
-        if idx != -1:
-            print(f"[DEBUG] around token: ...{body[max(0,idx-100):idx+100]}...")
-        else:
-            print("[DEBUG] no csrfmiddlewaretoken in body")
-            print(f"[DEBUG] body excerpt: {body[:500]}")
 
     print(f"\n  {len(SMOKE_PAGES) - failures}/{len(SMOKE_PAGES)} pages OK")
     return failures == 0
@@ -150,54 +123,55 @@ def _borrow_return_cycle(base, vehicle_id, debug=False):
     opener = _opener()
     name = _random_name()
 
+    # 1. Borrow: GET form page, POST to same URL
     form_url = urljoin(base, f"/borrow/{vehicle_id}/")
-    status, body, final = _get(opener, form_url)
+    status, body, _ = _get(opener, form_url)
     if status != 200:
-        return False, f"borrow form GET {status} (final {final})"
+        return False, f"borrow form GET {status}"
 
-    status, body, final = _post(
+    status, body, final = _post_with_token(
         opener,
-        urljoin(base, f"/borrow/{vehicle_id}/"),
-        {"borrowers_name": name, "destination": "stress-test"},
-        referer=form_url,
+        form_url=form_url,
+        post_url=urljoin(base, f"/borrow/{vehicle_id}/"),
+        data={"borrowers_name": name, "destination": "stress-test"},
         debug=debug,
     )
     if status not in (200, 302):
-        # Try to show a useful error message from the response body
-        snippet = ""
-        if "CSRF" in body or "csrf" in body:
-            snippet = " [CSRF rejected]"
-        elif "errorlist" in body:
-            snippet = " [form errors in response]"
+        snippet = " [CSRF]" if "csrf" in body.lower() else ""
         return False, f"borrow POST {status}{snippet}"
 
+    # 2. Find the borrow on the return list
     status, body, _ = _get(opener, urljoin(base, "/return/"))
     if status != 200:
         return False, f"return list GET {status}"
 
     confirm_links = re.findall(r"/return/(\d+)/confirm/", body)
     if not confirm_links:
-        return True, f"borrowed as {name}, no confirm links found (maybe returned already?)"
+        return True, f"borrowed as {name}, no confirm links (maybe already returned?)"
 
     pk = confirm_links[0]
-    status, body, final = _post(
+
+    # 3. GET the return confirm page (link page, no form) — just a sanity check
+    status, _, _ = _get(opener, urljoin(base, f"/return/{pk}/confirm/"))
+    if status != 200:
+        return False, f"return confirm GET {status}"
+
+    # 4. GET the actual return form (has CSRF), then POST
+    return_form_url = urljoin(base, f"/return/{pk}/")
+    status, body, final = _post_with_token(
         opener,
-        urljoin(base, f"/return/{pk}/"),
-        {
+        form_url=return_form_url,
+        post_url=return_form_url,
+        data={
             "fuel_percent": "50",
             "current_mileage": "50000",
             "notes": "stress-test return",
             "key_returned": "on",
         },
-        referer=urljoin(base, f"/return/{pk}/confirm/"),
         debug=debug,
     )
     if status not in (200, 302):
-        snippet = ""
-        if "CSRF" in body or "csrf" in body:
-            snippet = " [CSRF rejected]"
-        elif "errorlist" in body:
-            snippet = " [form errors in response]"
+        snippet = " [CSRF]" if "csrf" in body.lower() else ""
         return False, f"return POST {status}{snippet}"
 
     return True, f"borrowed {name}, returned pk={pk}"
@@ -246,7 +220,6 @@ def run_stress(base, n=50, workers=5, debug=False):
     print(f"  Successes: {successes}")
     print(f"  Failures:  {len(failures)}")
     if failures:
-        from collections import Counter
         print("\n  Failure breakdown:")
         for msg, count in Counter(failures).most_common():
             print(f"    {count}x  {msg}")
@@ -256,15 +229,13 @@ def run_stress(base, n=50, workers=5, debug=False):
     return len(failures) == 0
 
 
-# ---------- Main ----------
-
 def main():
     parser = argparse.ArgumentParser(description="Smoke + stress test for VBS")
     parser.add_argument("mode", choices=["smoke", "stress", "all"])
     parser.add_argument("--base", default=DEFAULT_BASE)
     parser.add_argument("--n", type=int, default=50)
     parser.add_argument("--workers", type=int, default=5)
-    parser.add_argument("--debug", action="store_true", help="print CSRF extraction details")
+    parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
 
     base = args.base.rstrip("/")
@@ -272,7 +243,6 @@ def main():
 
     if args.mode in ("smoke", "all"):
         ok = run_smoke(base, debug=args.debug) and ok
-
     if args.mode in ("stress", "all"):
         ok = run_stress(base, n=args.n, workers=args.workers, debug=args.debug) and ok
 
